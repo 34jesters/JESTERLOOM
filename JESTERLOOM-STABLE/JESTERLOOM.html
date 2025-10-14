@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- This tells the browser about your page -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JESTERLOOM</title>
+    
+    <!-- Load Three.js from CDN (Content Delivery Network - like a library on the internet) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- This is where we style how things look -->
+    <style>
+        /* Make everything look nice and modern */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;  /* Dark background */
+            color: #ffffff;       /* White text */
+            height: 100vh;        /* Full height of window */
+            overflow: hidden;     /* No scrollbars */
+        }
+        
+        /* Header bar at the top */
+        .header {
+            background: #41084D;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            border-bottom: 2px solid #444;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #D4AF37;
+        }
+        
+        .logo-img {
+            width: 128px;
+            height: 128px;
+            display: block;
+        }
+        
+        /* Main container for our app */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 52px);  /* Full height minus header */
+        }
+        
+        /* Left side - where 3D view will go */
+        .canvas-container {
+            flex: 1;
+            background: #29062B;
+            position: relative;
+        }
+        
+        /* The Three.js canvas needs special styling */
+        #three-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Right side panel */
+        .side-panel {
+            width: 400px;
+            background: #1f1f1f;
+            padding: 20px;
+            border-left: 1px solid #333;
+            overflow-y: auto;
+        }
+        
+        /* Input fields */
+        input, textarea, button, select {
+            background: #41084D;
+            color: white;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 4px;
+            width: 100%;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        button {
+            background: #D4AF37; /* gold */
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #f1c40f; /* lighter gold */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #D4AF37; /* gold accent */
+        }
+        
+        /* Instructions overlay */
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(14, 138, 52, 0.3);
+        }
+        
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            color: #0E8A34;
+        }
+        
+        /* Node content display */
+        .node-content-box {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 5px;
+            border-left: 3px solid #0E8A34;
+        }
+        
+        /* Depth indicator */
+        .depth-indicator {
+            display: inline-block;
+            background: #41084D;
+            color: #0CC44D;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 10px;
+        }
+
+        /* Streaming spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(212, 175, 55, 0.25);
+            border-top-color: #D4AF37;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Bar -->
+    <div class="header">
+        <img src="jesterloomlogo.png" alt="Jesterloom logo" class="logo-img">
+        <div class="logo">JESTERLOOM</div>
+        <select id="modelSelector">
+            <option value="">Select AI Model...</option>
+            <option value="openrouter/auto">OpenRouter Auto</option>
+            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="openai/gpt-4o-mini">OpenAI GPT-4o mini</option>
+            <option value="google/gemini-1.5-pro-latest">Google Gemini 1.5 Pro</option>
+            <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
+        </select>
+        <button onclick="showSettings()">⚙️ Settings</button>
+        <button id="stopBtn" onclick="stopStreaming()" style="display:none; background:#8a0e0e;">Stop</button>
+    </div>
+    
+    <!-- Main Application Container -->
+    <div class="main-container">
+        <!-- 3D Canvas Area -->
+        <div class="canvas-container" id="canvasContainer">
+            <!-- Three.js will insert its canvas here -->
+            
+            <!-- Instructions overlay -->
+            <div class="instructions">
+                <h4>🎮 Controls</h4>
+                <div>🖱️ Left Click + Drag: Rotate view</div>
+                <div>🖱️ Right Click + Drag: Pan</div>
+                <div>📏 Scroll: Zoom in/out</div>
+                <div>🎯 Click sphere: Select node</div>
+                <div>💫 Double-click: Focus node</div>
+            </div>
+        </div>
+        
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <!-- API Configuration -->
+            <div class="section">
+                <div class="section-title">🔑 API Configuration</div>
+                <input type="password" 
+                       id="apiKey" 
+                       placeholder="Enter your OpenRouter API key...">
+                <button onclick="saveApiKey()">Save API Key</button>
+            </div>
+            
+            <!-- Node Content Display -->
+            <div class="section">
+                <div class="section-title">
+                    💬 Current Node 
+                    <span id="nodeDepth" class="depth-indicator" style="display: none;">Depth: 0</span>
+                    <span id="streamSpinner" class="spinner" style="display:none;"></span>
+                    <span style="float:right; display:flex; gap:8px; align-items:center;">
+                        <button style="width:auto; padding:4px 8px;" onclick="renameSelectedNode()">Rename</button>
+                        <button id="deleteNodeBtn" style="width:auto; padding:4px 8px; background:#8a0e0e;" onclick="deleteSelectedNode()">Delete</button>
+                    </span>
+                </div>
+                <div id="nodeContent">
+                    <p style="color: #666;">Click a node to see its content</p>
+                </div>
+            </div>
+            
+            <!-- New Prompt Input -->
+            <div class="section">
+                <div class="section-title">✨ New Prompt</div>
+                <textarea id="newPrompt" 
+                          rows="4" 
+                          placeholder="Type your prompt here..."></textarea>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button onclick="generate(1)">Generate x1</button>
+                    <button onclick="generate(3)">Generate x3</button>
+                    <button onclick="generate(5)">Generate x5</button>
+                </div>
+            </div>
+            
+            <!-- Tree Controls -->
+            <div class="section">
+                <div class="section-title">🌲 Tree Controls</div>
+                <button onclick="addTestNode()">Add Test Node</button>
+                <button onclick="resetCamera()">Reset Camera</button>
+                <button onclick="autoLayout()">Auto-Layout Tree</button>
+                <button onclick="clearTree()">Clear Tree</button>
+            </div>
+            
+            <!-- Status Messages -->
+            <div class="section">
+                <div class="section-title">📊 Status</div>
+                <div id="status" style="color: #0E8A34;">
+                    Ready to start...
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Overlay -->
+    <div id="settingsOverlay" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background:#1f1f1f; border:1px solid #333; padding:20px; width:420px; border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="font-weight:bold; color:#0E8A34;">Settings</div>
+                <button style="width:auto;" onclick="document.getElementById('settingsOverlay').style.display='none'">Close</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button onclick="exportTree()">Export Tree (JSON)</button>
+                <button onclick="addModelOption()">Add Model Option</button>
+                <div style="border-top:1px solid #333; margin-top:8px; padding-top:8px;">
+                    <div style="margin-bottom:6px; color:#0E8A34; font-weight:bold;">Import Tree</div>
+                    <input id="importFile" type="file" accept="application/json" />
+                    <button onclick="importTree()">Import</button>
+                </div>
+                <div style="border-top:1px solid #333; margin-top:8px; padding-top:8px;">
+                    <div style="margin-bottom:6px; color:#0E8A34; font-weight:bold;">Appearance</div>
+                    <label>Header Color <input id="appearanceHeader" type="color" value="#41084d" style="width:auto;" /></label>
+                    <label>Side Panel Color <input id="appearanceSide" type="color" value="#1f1f1f" style="width:auto;" /></label>
+                    <label>Canvas Color <input id="appearanceCanvas" type="color" value="#29062b" style="width:auto;" /></label>
+                    <label>Text Color <input id="appearanceText" type="color" value="#ffffff" style="width:auto;" /></label>
+                    <label>Accent Color <input id="appearanceAccent" type="color" value="#0E8A34" style="width:auto;" /></label>
+                    <label>Button Color <input id="appearanceBtn" type="color" value="#0E8A34" style="width:auto;" /></label>
+                    <label>Button Hover <input id="appearanceBtnHover" type="color" value="#0CC44D" style="width:auto;" /></label>
+                    <label>Connection Line <input id="appearanceLine" type="color" value="#666666" style="width:auto;" /></label>
+                    <label>Root Node Color <input id="appearanceRootNode" type="color" value="#28a745" style="width:auto;" /></label>
+                    <label>Child Node Base <input id="appearanceChildNode" type="color" value="#d63384" style="width:auto;" /></label>
+                    <label>Font
+                        <select id="appearanceFont">
+                            <option value="Arial, sans-serif">Arial</option>
+                            <option value="Inter, system-ui, sans-serif">Inter</option>
+                            <option value="Segoe UI, Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+                            <option value="Roboto, Helvetica, Arial, sans-serif">Roboto</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="'Courier New', monospace">Courier New</option>
+                        </select>
+                    </label>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="applyAppearance()">Apply</button>
+                        <button onclick="resetAppearance()">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Dynamic theme styles -->
+    <style id="dynamicTheme"></style>
+
+    <!-- JavaScript Code -->
+    <script>
+        // ========================================
+        // PART 1: BASIC SETUP
+        // ========================================
+        
+        console.log("🚀 Conversation Tree Explorer is starting...");
+        
+        // Store our API key in memory (not localStorage)
+        let apiKey = '';
+        
+        // ========================================
+        // PART 2: DATA STRUCTURE FOR OUR TREE
+        // ========================================
+        
+        // This is our tree structure - think of it like a family tree
+        // Each node has an ID, knows its parent, and has content
+        class TreeNode {
+            constructor(id, parentId, userPrompt, aiResponse) {
+                this.id = id;                    // Unique identifier for this node
+                this.parentId = parentId;        // ID of parent node (null for root)
+                this.userPrompt = userPrompt;    // What the user typed
+                this.aiResponse = aiResponse;    // What the AI responded
+                this.children = [];              // Array of child node IDs
+                this.position = { x: 0, y: 0, z: 0 }; // 3D position
+                this.mesh = null;                // The Three.js sphere object
+                this.depth = 0;                  // How deep in the tree (root = 0)
+                this.connections = [];           // Line objects connecting to children
+            }
+        }
+        
+        // Store all our nodes here
+        let nodes = new Map();  // Map is like an object but better for storing by ID
+        let selectedNodeId = null;
+        
+        // Create the root node (starting point of our tree)
+        // Root is virtual/invisible until first prompt generates a child
+        const rootNode = new TreeNode('root', null, '', '');
+        nodes.set('root', rootNode);
+        
+        // ========================================
+        // PART 3: THREE.JS 3D GRAPHICS SETUP
+        // ========================================
+        
+        let scene, camera, renderer, controls;
+        let raycaster, mouse;  // For detecting mouse clicks on 3D objects
+        let clock = new THREE.Clock(); // For animations
+        // Dragging state
+        let draggingNodeId = null;
+        let dragPlane = null; // THREE.Plane used during dragging
+        let dragOffset = new THREE.Vector3();
+        // Streaming control
+        let currentAbortController = null;
+        let isStreaming = false;
+        
+        function initThreeJS() {
+            console.log("Initializing Three.js...");
+            
+            // 1. Create the scene (like a 3D stage)
+            scene = new THREE.Scene();
+            
+            // Add fog for depth perception
+            // Remove fog for full path visibility
+            // scene.fog disabled
+            scene.background = new THREE.Color(0x29062B); // Your purple background
+            
+            // 2. Create the camera (like your eyes looking at the stage)
+            const container = document.getElementById('canvasContainer');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera = new THREE.PerspectiveCamera(
+                75,                      // Field of view (how wide you can see)
+                width / height,          // Aspect ratio
+                0.1,                     // Near clipping plane (closest you can see)
+                1000                     // Far clipping plane (farthest you can see)
+            );
+            camera.position.set(0, 0, 10); // Position camera back from origin
+            
+            // 3. Create the renderer (draws everything to the screen)
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true 
+            }); 
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+            renderer.shadowMap.enabled = true; // Enable shadows
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+            container.appendChild(renderer.domElement);
+            
+            // 4. Add lights (so we can see the 3D objects)
+            setupLights();
+            
+            // 5. Set up mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // 6. Add orbit controls (drag to rotate, scroll to zoom)
+            setupControls();
+            
+            // 7. Root node is virtual; do not add a visible mesh
+            
+            // 8. Handle window resizing
+            window.addEventListener('resize', onWindowResize);
+            
+            // 9. Handle mouse clicks
+            renderer.domElement.addEventListener('click', onMouseClick);
+            renderer.domElement.addEventListener('dblclick', onMouseDoubleClick);
+            
+            // 10. Start the animation loop
+            animate();
+            
+            updateStatus("✅ 3D scene initialized!");
+        }
+        
+        // Better lighting setup
+        function setupLights() {
+            // Ambient light for overall illumination
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            
+            // Main directional light (like the sun)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 0.1;
+            directionalLight.shadow.camera.far = 50;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+            
+            // Point light for accent
+            const pointLight = new THREE.PointLight(0x0CC44D, 0.3, 20);
+            pointLight.position.set(0, 5, 0);
+            scene.add(pointLight);
+        }
+        
+        // Enhanced orbit controls with smooth movement
+        function setupControls() {
+            let isMouseDown = false;
+            let mouseButton = 0;
+            let previousMousePosition = { x: 0, y: 0 };
+            let cameraRotation = { x: 0, y: 0 };
+            let cameraDistance = 10;
+            let cameraTarget = { x: 0, y: 0, z: 0 };
+            
+            // Smooth camera movement variables
+            let targetRotation = { x: 0, y: 0 };
+            let targetDistance = 10;
+            let targetCameraTarget = { x: 0, y: 0, z: 0 };
+            
+            const canvas = renderer.domElement;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                mouseButton = e.button;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+
+                // Shift + click on node to start dragging
+                if (e.shiftKey) {
+                    const rect = canvas.getBoundingClientRect();
+                    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const meshes = Array.from(nodes.values()).map(n => n.mesh).filter(Boolean);
+                    const intersects = raycaster.intersectObjects(meshes);
+                    if (intersects.length > 0) {
+                        const hit = intersects[0];
+                        const nodeId = hit.object.userData.nodeId;
+                        const node = nodes.get(nodeId);
+                        if (node) {
+                            draggingNodeId = nodeId;
+                            dragPlane = new THREE.Plane();
+                            const normal = new THREE.Vector3();
+                            camera.getWorldDirection(normal).normalize();
+                            dragPlane.setFromNormalAndCoplanarPoint(normal, node.mesh.position);
+                            const intersection = new THREE.Vector3();
+                            raycaster.ray.intersectPlane(dragPlane, intersection);
+                            dragOffset.copy(node.mesh.position).sub(intersection);
+                        }
+                    }
+                }
+            });
+            
+            window.addEventListener('mouseup', () => {
+                isMouseDown = false;
+                draggingNodeId = null;
+            });
+            
+            window.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+
+                // Handle dragging when active
+                if (draggingNodeId) {
+                    const canvasRect = canvas.getBoundingClientRect();
+                    mouse.x = ((e.clientX - canvasRect.left) / canvasRect.width) * 2 - 1;
+                    mouse.y = -((e.clientY - canvasRect.top) / canvasRect.height) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    if (dragPlane) {
+                        const intersection = new THREE.Vector3();
+                        if (raycaster.ray.intersectPlane(dragPlane, intersection)) {
+                            intersection.add(dragOffset);
+                            const node = nodes.get(draggingNodeId);
+                            if (node && node.mesh) {
+                                node.position = { x: intersection.x, y: intersection.y, z: intersection.z };
+                                node.mesh.position.set(intersection.x, intersection.y, intersection.z);
+                                rebuildConnections();
+                            }
+                        }
+                    }
+                    return; // skip camera controls while dragging
+                }
+
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                if (mouseButton === 0) { // Left click - rotate
+                    targetRotation.y += deltaX * 0.01;
+                    targetRotation.x += deltaY * 0.01;
+                    targetRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotation.x));
+                    
+                } else if (mouseButton === 2) { // Right click - pan (lock to X/Y)
+                    const panSpeed = cameraDistance * 0.002;
+                    const cameraRight = new THREE.Vector3();
+                    const cameraUp = new THREE.Vector3();
+                    camera.getWorldDirection(new THREE.Vector3());
+                    camera.matrixWorld.extractBasis(cameraRight, cameraUp, new THREE.Vector3());
+                    
+                    targetCameraTarget.x -= cameraRight.x * deltaX * panSpeed;
+                    targetCameraTarget.y += cameraUp.y * deltaY * panSpeed;
+                    // Lock Z so we only pan in X/Y plane
+                    // targetCameraTarget.z unchanged
+                }
+                
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                targetDistance += e.deltaY * 0.01;
+                targetDistance = Math.max(2, Math.min(50, targetDistance));
+            });
+            
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            // Smooth camera update function
+            window.updateCamera = function() {
+                // Smoothly interpolate values
+                const smoothness = 0.1;
+                
+                cameraRotation.x += (targetRotation.x - cameraRotation.x) * smoothness;
+                cameraRotation.y += (targetRotation.y - cameraRotation.y) * smoothness;
+                cameraDistance += (targetDistance - cameraDistance) * smoothness;
+                cameraTarget.x += (targetCameraTarget.x - cameraTarget.x) * smoothness;
+                cameraTarget.y += (targetCameraTarget.y - cameraTarget.y) * smoothness;
+                cameraTarget.z += (targetCameraTarget.z - cameraTarget.z) * smoothness;
+                
+                // Update camera position
+                camera.position.x = cameraTarget.x + cameraDistance * Math.sin(cameraRotation.y) * Math.cos(cameraRotation.x);
+                camera.position.y = cameraTarget.y + cameraDistance * Math.sin(cameraRotation.x);
+                camera.position.z = cameraTarget.z + cameraDistance * Math.cos(cameraRotation.y) * Math.cos(cameraRotation.x);
+                camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+            };
+            
+            // Reset function
+            window.resetCameraView = function() {
+                targetRotation = { x: 0, y: 0 };
+                targetDistance = 10;
+                targetCameraTarget = { x: 0, y: 0, z: 0 };
+            };
+            
+            // Focus on node function
+            window.focusOnNode = function(node) {
+                targetCameraTarget = { 
+                    x: node.position.x, 
+                    y: node.position.y, 
+                    z: node.position.z 
+                };
+                targetDistance = 5;
+            };
+        }
+        
+        function getDepthColor(depth) {
+            // Root stays gold-ish green for emphasis, children vary by depth
+            if (depth === 0) return window.appearance?.rootNodeColor || '#28a745';
+            // Derive a hue shift based on depth; base from childNodeColor if provided
+            const baseHex = window.appearance?.childNodeColor || '#d63384';
+            const base = new THREE.Color(baseHex);
+            // Convert to HSL and shift hue by depth
+            const hsl = { h: 0, s: 0, l: 0 };
+            base.getHSL(hsl);
+            const hueShift = (depth * 0.12) % 1; // rotate hue by 0.12 per level
+            const color = new THREE.Color().setHSL((hsl.h + hueShift) % 1, Math.min(1, hsl.s * 0.9 + 0.1), Math.min(0.7, Math.max(0.35, hsl.l)));
+            return `#${color.getHexString()}`;
+        }
+
+        // Create a 3D sphere for a node with better visuals
+        function createNodeMesh(node) {
+            // Calculate depth for this node
+            if (node.parentId) {
+                const parent = nodes.get(node.parentId);
+                node.depth = parent.depth + 1;
+            }
+            
+            // Create geometry with dynamic size based on depth
+            const size = 0.3 - (node.depth * 0.02); // Nodes get smaller as they go deeper
+            const geometry = new THREE.SphereGeometry(Math.max(0.15, size), 32, 32);
+            
+            // Create material using depth-based colors
+            const nodeHex = getDepthColor(node.depth);
+            const color = new THREE.Color(nodeHex);
+            
+            const material = new THREE.MeshPhongMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.2,
+                shininess: 100,
+                transparent: true,
+                opacity: 0.9
+            });
+            
+            // Create mesh
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(node.position.x, node.position.y, node.position.z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { nodeId: node.id };
+            
+            // Add glow effect
+            const glowGeometry = new THREE.SphereGeometry(size * 1.2, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.2
+            });
+            const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+            mesh.add(glowMesh);
+            
+            scene.add(mesh);
+            node.mesh = mesh;
+            
+            // Animate node appearance
+            mesh.scale.set(0, 0, 0);
+            animateNodeAppearance(mesh);
+            
+            // Create connections to parent
+            if (node.parentId) {
+                const parent = nodes.get(node.parentId);
+                if (parent && parent.mesh) {
+                    createCurvedConnection(parent, node);
+                }
+            }
+        }
+        
+        // Animate node appearing
+        function animateNodeAppearance(mesh) {
+            const targetScale = 1;
+            const animationDuration = 500; // milliseconds
+            const startTime = Date.now();
+            
+            function updateScale() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / animationDuration, 1);
+                
+                // Easing function for smooth animation
+                const easeOutBack = (t) => {
+                    const c1 = 1.70158;
+                    const c3 = c1 + 1;
+                    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+                };
+                
+                const scale = easeOutBack(progress) * targetScale;
+                mesh.scale.set(scale, scale, scale);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(updateScale);
+                }
+            }
+            
+            updateScale();
+        }
+        
+        // Create curved connection between nodes
+        function createCurvedConnection(parentNode, childNode) {
+            // Guard against invalid or cyclic connection
+            if (!parentNode || !childNode || parentNode.id === childNode.id) return;
+            const start = new THREE.Vector3(
+                parentNode.position.x,
+                parentNode.position.y,
+                parentNode.position.z
+            );
+            const end = new THREE.Vector3(
+                childNode.position.x,
+                childNode.position.y,
+                childNode.position.z
+            );
+            
+            // Create curve
+            const mid = new THREE.Vector3(
+                (start.x + end.x) / 2,
+                (start.y + end.y) / 2 + 0.5, // Add some curve height
+                (start.z + end.z) / 2
+            );
+            
+            const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+            const points = curve.getPoints(32);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            // Gradient material for the line
+            const lineHex = (window.appearance?.lineColor || '#B8860B').replace('#','');
+            const lineInt = parseInt(lineHex, 16);
+            const material = new THREE.LineBasicMaterial({
+                color: lineInt,
+                opacity: 0.4,
+                transparent: true,
+                linewidth: 2
+            });
+            
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            
+            // Store connection on parent node
+            parentNode.connections.push(line);
+        }
+        
+        // Handle mouse clicks on nodes
+        function onMouseClick(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            
+            const meshes = Array.from(nodes.values())
+                .map(node => node.mesh)
+                .filter(mesh => mesh !== null);
+            
+            const intersects = raycaster.intersectObjects(meshes);
+            
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                const nodeId = clickedMesh.userData.nodeId;
+                selectNode(nodeId);
+            }
+        }
+        
+        // Handle double clicks for focusing
+        function onMouseDoubleClick(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            
+            const meshes = Array.from(nodes.values())
+                .map(node => node.mesh)
+                .filter(mesh => mesh !== null);
+            
+            const intersects = raycaster.intersectObjects(meshes);
+            
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                const nodeId = clickedMesh.userData.nodeId;
+                const node = nodes.get(nodeId);
+                if (node) {
+                    window.focusOnNode(node);
+                    selectNode(nodeId);
+                }
+            }
+        }
+        
+        // Select a node and show its content
+        function selectNode(nodeId) {
+            const node = nodes.get(nodeId);
+            if (!node) return;
+            
+            selectedNodeId = nodeId;
+            
+            // Update all node appearances
+            nodes.forEach(n => {
+                if (n.mesh) {
+                    const isSelected = n.id === nodeId;
+                    const scale = isSelected ? 1.2 : 1;
+                    
+                    // Animate scale change
+                    const currentScale = n.mesh.scale.x;
+                    const animationSteps = 10;
+                    let step = 0;
+                    
+                    function updateScale() {
+                        step++;
+                        const progress = step / animationSteps;
+                        const newScale = currentScale + (scale - currentScale) * progress;
+                        n.mesh.scale.set(newScale, newScale, newScale);
+                        
+                        if (step < animationSteps) {
+                            requestAnimationFrame(updateScale);
+                        }
+                    }
+                    updateScale();
+                    
+                    // Update opacity
+                    n.mesh.material.opacity = isSelected ? 1 : 0.7;
+                }
+            });
+            
+            // Show node content
+            const contentDiv = document.getElementById('nodeContent');
+            // Build chat-style timeline from root to selected node (cycle guards + render cap)
+            const chain = [];
+            const visitedPath = new Set();
+            let cur = node;
+            let steps = 0;
+            const MAX_WALK = 2000;
+            while (cur && steps++ < MAX_WALK) {
+                if (visitedPath.has(cur.id)) break;
+                visitedPath.add(cur.id);
+                chain.push(cur);
+                cur = cur.parentId ? nodes.get(cur.parentId) : null;
+            }
+            chain.reverse();
+            const MAX_RENDER = 200;
+            const renderChain = chain.length > MAX_RENDER ? chain.slice(chain.length - MAX_RENDER) : chain;
+            // Split into history (all but latest node) and latest (selected node)
+            const history = renderChain.slice(0, Math.max(0, renderChain.length - 1));
+            const latest = renderChain.length ? renderChain[renderChain.length - 1] : null;
+
+            let historyHtml = '';
+            history.forEach(n => {
+                if (n.userPrompt) {
+                    historyHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <strong style=\"color: #0E8A34;\">You</strong>
+                        <div class=\"node-content-box\">${n.userPrompt}</div>
+                    </div>`;
+                }
+                if (n.aiResponse) {
+                    historyHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <strong style=\"color: #0E8A34;\">Assistant</strong>
+                        <div class=\"node-content-box\">${n.aiResponse}</div>
+                    </div>`;
+                }
+            });
+            const historyCount = history.reduce((acc, n) => acc + (n.userPrompt ? 1 : 0) + (n.aiResponse ? 1 : 0), 0);
+
+            let latestHtml = '';
+            if (latest) {
+                if (latest.userPrompt) {
+                    latestHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <strong style=\"color: #0E8A34;\">You</strong>
+                        <div class=\"node-content-box\">${latest.userPrompt}</div>
+                    </div>`;
+                }
+                if (latest.aiResponse) {
+                    latestHtml += `
+                    <div style="margin-bottom: 10px;">
+                        <strong style=\"color: #0E8A34;\">Assistant</strong>
+                        <div class=\"node-content-box\">${latest.aiResponse}</div>
+                    </div>`;
+                }
+            }
+
+            const html = `
+                ${historyCount > 0 ? `
+                <details id=\"historyCollapse\">
+                    <summary style=\"cursor:pointer; color:#D4AF37;\">Show history (${historyCount})</summary>
+                    <div style=\"margin-top:8px;\">${historyHtml}</div>
+                </details>` : ''}
+                ${latestHtml || ''}
+            `;
+            contentDiv.innerHTML = html || `<p style="color: #666;">No messages yet</p>`;
+            
+            // Update depth indicator (hide for root/unselected)
+            const depthIndicator = document.getElementById('nodeDepth');
+            if (depthIndicator) {
+                const isRoot = (nodeId === 'root');
+                depthIndicator.style.display = isRoot ? 'none' : 'inline-block';
+                if (!isRoot) depthIndicator.textContent = `Depth: ${node.depth}`;
+            }
+
+            // Disable delete button for root
+            const delBtn = document.getElementById('deleteNodeBtn');
+            if (delBtn) {
+                const isRoot = (nodeId === 'root');
+                delBtn.disabled = isRoot;
+                delBtn.style.display = isRoot ? 'none' : 'inline-block';
+            }
+ 
+            updateStatus(`Selected: ${nodeId} (Depth: ${node.depth})`);
+        }
+        
+        // Animation loop with smooth updates
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update camera smoothly
+            window.updateCamera();
+            
+            // Rotate all nodes slightly for visual interest
+            const time = clock.getElapsedTime();
+            nodes.forEach(node => {
+                if (node.mesh) {
+                    node.mesh.rotation.y = Math.sin(time * 0.5 + node.depth) * 0.1;
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            const container = document.getElementById('canvasContainer');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        // ========================================
+        // PART 4: TREE MANIPULATION FUNCTIONS
+        // ========================================
+        
+        let nodeCounter = 1;
+
+        function extractNumericId(id) {
+            const m = typeof id === 'string' && id.match(/^node_(\d+)$/);
+            return m ? parseInt(m[1], 10) : null;
+        }
+
+        function syncNodeCounterFromExisting() {
+            let maxNum = 0;
+            nodes.forEach(n => {
+                const num = extractNumericId(n.id);
+                if (typeof num === 'number' && num > maxNum) maxNum = num;
+            });
+            nodeCounter = Math.max(nodeCounter, maxNum + 1);
+        }
+
+        function getNextNodeId() {
+            // Ensure uniqueness against existing nodes
+            let candidate;
+            do {
+                candidate = `node_${nodeCounter++}`;
+            } while (nodes.has(candidate));
+            return candidate;
+        }
+        
+        // Improved tree layout algorithm
+        function calculateNodePosition(parentNode, childIndex, totalChildren) {
+            const levelHeight = 2.5; // Vertical spacing between levels
+            const radius = 2 + (parentNode.depth * 0.5); // Spread increases with depth
+            
+            // Calculate angle for this child
+            const angleSpread = Math.PI * 1.5; // How much of a circle to use
+            const angleOffset = -angleSpread / 2; // Center the spread
+            const angle = angleOffset + (angleSpread / Math.max(1, totalChildren - 1)) * childIndex;
+            
+            // Add some randomness for organic feel
+            const randomOffset = {
+                x: (Math.random() - 0.5) * 0.3,
+                y: (Math.random() - 0.5) * 0.2,
+                z: (Math.random() - 0.5) * 0.3
+            };
+            
+            return {
+                x: parentNode.position.x + Math.cos(angle) * radius + randomOffset.x,
+                y: parentNode.position.y - levelHeight + randomOffset.y,
+                z: parentNode.position.z + Math.sin(angle) * radius + randomOffset.z
+            };
+        }
+        
+        // Add a test node with better positioning
+        function addTestNode() {
+            console.log('addTestNode called');
+            console.log('selectedNodeId:', selectedNodeId);
+            console.log('nodes Map:', nodes);
+            
+            if (!selectedNodeId) {
+                updateStatus('⚠️ Please select a parent node first');
+                return;
+            }
+            
+            const parentNode = nodes.get(selectedNodeId);
+            console.log('Parent node:', parentNode);
+            if (!parentNode) return;
+            
+            const nodeId = getNextNodeId();
+            const newNode = new TreeNode(
+                nodeId,
+                selectedNodeId,
+                `Test prompt ${nodeCounter}`,
+                `This is test response ${nodeCounter}. In a real scenario, this would contain the AI's response to your prompt.`
+            );
+            
+            // Calculate position using improved algorithm
+            newNode.position = calculateNodePosition(
+                parentNode,
+                parentNode.children.length,
+                parentNode.children.length + 1
+            );
+            
+            // Add to data structures
+            nodes.set(nodeId, newNode);
+            parentNode.children.push(nodeId);
+            
+            // Create 3D representation
+            createNodeMesh(newNode);
+            
+            updateStatus(`Added node: ${nodeId}`);
+        }
+        
+        // Auto-layout the entire tree
+        function autoLayout() {
+            updateStatus('Reorganizing tree layout...');
+            
+            // Rebuild positions from root
+            const visited = new Set();
+            const queue = [{ id: 'root', position: { x: 0, y: 0, z: 0 } }];
+            
+            while (queue.length > 0) {
+                const { id, position } = queue.shift();
+                if (visited.has(id)) continue;
+                visited.add(id);
+                
+                const node = nodes.get(id);
+                if (!node) continue;
+                
+                // Update position
+                node.position = position;
+                if (node.mesh) {
+                    // Animate to new position
+                    animateNodePosition(node.mesh, position);
+                }
+                
+                // Queue children with calculated positions
+                node.children.forEach((childId, index) => {
+                    const childNode = nodes.get(childId);
+                    if (childNode) {
+                        const newPos = calculateNodePosition(node, index, node.children.length);
+                        queue.push({ id: childId, position: newPos });
+                    }
+                });
+            }
+            
+            // After positions updated, rebuild connections
+            rebuildConnections();
+        }
+
+        // Smoothly animate a mesh to a new position
+        function animateNodePosition(mesh, targetPosition, duration = 600) {
+            const start = mesh.position.clone();
+            const startTime = Date.now();
+            
+            function tick() {
+                const elapsed = Date.now() - startTime;
+                const t = Math.min(1, elapsed / duration);
+                // Ease in-out cubic
+                const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                
+                mesh.position.set(
+                    start.x + (targetPosition.x - start.x) * eased,
+                    start.y + (targetPosition.y - start.y) * eased,
+                    start.z + (targetPosition.z - start.z) * eased
+                );
+                
+                if (t < 1) requestAnimationFrame(tick);
+            }
+            tick();
+        }
+
+        // Rebuild all connection lines between nodes
+        function rebuildConnections() {
+            // Remove existing lines from scene
+            nodes.forEach(node => {
+                if (node.connections && node.connections.length) {
+                    node.connections.forEach(line => {
+                        if (line && scene) scene.remove(line);
+                    });
+                    node.connections = [];
+                }
+            });
+            // Recreate lines
+            nodes.forEach(node => {
+                if (node.parentId) {
+                    const parent = nodes.get(node.parentId);
+                    if (parent) createCurvedConnection(parent, node);
+                }
+            });
+        }
+
+        // Update status helper
+        function updateStatus(message) {
+            const el = document.getElementById('status');
+            if (el) el.textContent = message;
+        }
+
+        // ===== OpenRouter helpers =====
+        function getSelectedModel() {
+            const sel = document.getElementById('modelSelector');
+            return sel && sel.value ? sel.value : '';
+        }
+
+        function buildConversationMessages(parentNode, userPrompt) {
+            // Walk up to root to collect history with cycle guards
+            const chain = [];
+            const visited = new Set();
+            let current = parentNode;
+            let steps = 0;
+            const MAX_WALK = 2000;
+            while (current && steps++ < MAX_WALK) {
+                if (visited.has(current.id)) break;
+                visited.add(current.id);
+                chain.push(current);
+                current = current.parentId ? nodes.get(current.parentId) : null;
+            }
+            chain.reverse();
+            // Limit to most recent N nodes to avoid huge payloads
+            const MAX_NODES = 20;
+            const recent = chain.length > MAX_NODES ? chain.slice(chain.length - MAX_NODES) : chain;
+            const messages = [];
+            recent.forEach(n => {
+                if (n.userPrompt) messages.push({ role: 'user', content: n.userPrompt });
+                if (n.aiResponse) messages.push({ role: 'assistant', content: n.aiResponse });
+            });
+            messages.push({ role: 'user', content: userPrompt });
+            return messages;
+        }
+
+        async function callOpenRouterAPI(model, key, messages, signal) {
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': window.location.origin,
+                    'X-Title': 'Conversation Tree Explorer'
+                },
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    temperature: 0.8,
+                    stream: true
+                }),
+                signal
+            });
+            if (!res.ok) {
+                let detail = '';
+                try { detail = JSON.stringify(await res.json()); } catch {}
+                throw new Error(`OpenRouter error ${res.status}: ${detail || res.statusText}`);
+            }
+            return res.body; // ReadableStream
+        }
+
+        // Button handlers
+        function showSettings() {
+            const overlay = document.getElementById('settingsOverlay');
+            overlay.style.display = 'flex';
+        }
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKey');
+            apiKey = input && input.value ? input.value.trim() : '';
+            updateStatus(apiKey ? '🔐 API key saved in memory' : '⚠️ No API key entered');
+        }
+
+        function stopStreaming() {
+            if (currentAbortController) {
+                try { currentAbortController.abort(); } catch {}
+            }
+            isStreaming = false;
+            const stopBtn = document.getElementById('stopBtn');
+            if (stopBtn) stopBtn.style.display = 'none';
+            const sp = document.getElementById('streamSpinner');
+            if (sp) sp.style.display = 'none';
+            updateStatus('⏹️ Stopped');
+        }
+
+        function resetCamera() {
+            if (window.resetCameraView) window.resetCameraView();
+            updateStatus('Camera reset');
+        }
+
+        function clearTree() {
+            // Remove all meshes and lines except root
+            nodes.forEach((node, id) => {
+                if (id === 'root') return;
+                if (node.mesh && scene) scene.remove(node.mesh);
+                if (node.connections && node.connections.length) {
+                    node.connections.forEach(line => scene.remove(line));
+                }
+            });
+            // Reset data to only root
+            const root = nodes.get('root');
+            if (root) {
+                root.children = [];
+                root.connections = [];
+            }
+            nodes = new Map(nodes.has('root') ? [['root', root]] : []);
+            selectedNodeId = 'root';
+            if (root && root.mesh) {
+                root.position = { x: 0, y: 0, z: 0 };
+                animateNodePosition(root.mesh, root.position, 0);
+            }
+            rebuildConnections();
+            selectNode('root');
+            updateStatus('Tree cleared');
+        }
+
+        async function generate(count) {
+            const promptEl = document.getElementById('newPrompt');
+            const prompt = promptEl && promptEl.value ? promptEl.value.trim() : '';
+            if (!prompt) { updateStatus('⚠️ Please type a prompt first'); return; }
+            // If nothing is selected yet, attach to the invisible root
+            const parentId = selectedNodeId || 'root';
+            const parentNode = nodes.get(parentId);
+            if (!parentNode) return;
+
+            const model = getSelectedModel();
+            const key = apiKey;
+            const useAPI = Boolean(model && key);
+            if (!useAPI) {
+                updateStatus('Using stub: set API key and model for real responses');
+            } else {
+                updateStatus(`Generating ${count} via ${model}...`);
+            }
+
+            if (isStreaming) { updateStatus('⚠️ Already streaming'); return; }
+            const controller = new AbortController();
+            currentAbortController = controller;
+            const { signal } = controller;
+
+            try {
+                let lastCreatedNodeId = null;
+                for (let i = 0; i < count; i++) {
+                    const nodeId = getNextNodeId();
+                    const newNode = new TreeNode(nodeId, parentId, prompt, '');
+                    newNode.position = calculateNodePosition(
+                        parentNode,
+                        parentNode.children.length,
+                        parentNode.children.length + 1
+                    );
+                    nodes.set(nodeId, newNode);
+                    if (!parentNode.children.includes(nodeId)) parentNode.children.push(nodeId);
+                    createNodeMesh(newNode);
+                    lastCreatedNodeId = nodeId;
+
+                    if (useAPI) {
+                        const messages = buildConversationMessages(parentNode, prompt);
+                        try {
+                            const stream = await callOpenRouterAPI(model, key, messages, signal);
+                            isStreaming = true;
+                            const stopBtn = document.getElementById('stopBtn');
+                            if (stopBtn) stopBtn.style.display = 'inline-block';
+                            const sp = document.getElementById('streamSpinner');
+                            if (sp) sp.style.display = 'inline-block';
+                            const reader = stream.getReader();
+                            const decoder = new TextDecoder();
+                            let buffer = '';
+                            let lastUI = 0;
+                            const UI_MS = 50;
+                            while (true) {
+                                const { value, done } = await reader.read();
+                                if (done) break;
+                                buffer += decoder.decode(value, { stream: true });
+                                const chunks = buffer.split('\n\n');
+                                buffer = chunks.pop() || '';
+                                for (const raw of chunks) {
+                                    const line = raw.trim();
+                                    if (!line.startsWith('data:')) continue;
+                                    const payload = line.slice(5).trim();
+                                    if (!payload || payload === '[DONE]') continue;
+                                    try {
+                                        const json = JSON.parse(payload);
+                                        const delta = json?.choices?.[0]?.delta?.content || '';
+                                        if (delta) {
+                                            newNode.aiResponse += delta;
+                                            const now = performance.now();
+                        if (now - lastUI > UI_MS && selectedNodeId === nodeId) {
+                                                lastUI = now;
+                            // Update only the latest section without re-expanding history
+                            const contentDiv = document.getElementById('nodeContent');
+                            if (contentDiv) {
+                                const latestBlock = `
+                                    ${newNode.userPrompt ? `
+                                    <div style="margin-bottom: 10px;">
+                                        <strong style=\"color: #0E8A34;\">You</strong>
+                                        <div class=\"node-content-box\">${newNode.userPrompt}</div>
+                                    </div>` : ''}
+                                    <div style="margin-bottom: 10px;">
+                                        <strong style=\"color: #0E8A34;\">Assistant</strong>
+                                        <div class=\"node-content-box\">${newNode.aiResponse}</div>
+                                    </div>`;
+                                const details = document.getElementById('historyCollapse');
+                                const historySection = details ? details.outerHTML : '';
+                                contentDiv.innerHTML = `${historySection}${latestBlock}`;
+                            }
+                                            }
+                                        }
+                                    } catch {}
+                                }
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            newNode.aiResponse = newNode.aiResponse || `API error: ${err.message}`;
+                        } finally {
+                            isStreaming = false;
+                            const stopBtn = document.getElementById('stopBtn');
+                            if (stopBtn) stopBtn.style.display = 'none';
+                            const sp = document.getElementById('streamSpinner');
+                            if (sp) sp.style.display = 'none';
+                            if (selectedNodeId === nodeId) selectNode(nodeId);
+                        }
+                    } else {
+                        newNode.aiResponse = `Stubbed response ${i + 1} to: ${prompt}`;
+                        if (selectedNodeId === nodeId) selectNode(nodeId);
+                    }
+                }
+                // Avoid rebuilding the entire graph on large trees; new node connections are already added
+                if (nodes.size < 500) {
+                    rebuildConnections();
+                }
+                // Auto-select the most recently created node
+                if (lastCreatedNodeId) {
+                    selectNode(lastCreatedNodeId);
+                }
+                updateStatus(`Generated ${count} node(s)`);
+            } finally {
+                if (currentAbortController) currentAbortController = null;
+                isStreaming = false;
+                const stopBtn = document.getElementById('stopBtn');
+                if (stopBtn) stopBtn.style.display = 'none';
+                const sp = document.getElementById('streamSpinner');
+                if (sp) sp.style.display = 'none';
+            }
+        }
+
+        // Settings actions
+        function exportTree() {
+            const data = {
+                nodes: Array.from(nodes.values()).map(n => ({
+                    id: n.id,
+                    parentId: n.parentId,
+                    userPrompt: n.userPrompt,
+                    aiResponse: n.aiResponse,
+                    children: n.children.slice(),
+                    position: n.position,
+                    depth: n.depth
+                })),
+                selectedNodeId
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'conversation-tree.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            updateStatus('Exported tree to conversation-tree.json');
+        }
+
+        function addModelOption() {
+            const slug = prompt('Enter model slug (e.g., anthropic/claude-3.5-sonnet)');
+            if (!slug) return;
+            const label = prompt('Enter label to display', slug) || slug;
+            const sel = document.getElementById('modelSelector');
+            const opt = document.createElement('option');
+            opt.value = slug;
+            opt.textContent = label;
+            sel.appendChild(opt);
+            updateStatus(`Added model option: ${label}`);
+        }
+
+        // Node actions: rename and delete
+        function renameSelectedNode() {
+            if (!selectedNodeId) { updateStatus('⚠️ No node selected'); return; }
+            const node = nodes.get(selectedNodeId);
+            if (!node) return;
+            const current = node.userPrompt || '';
+            const next = prompt('Enter new prompt/title for this node', current);
+            if (next === null) return;
+            node.userPrompt = next.trim();
+            selectNode(selectedNodeId);
+            updateStatus('Node renamed');
+        }
+
+        function deleteSelectedNode() {
+            if (!selectedNodeId || selectedNodeId === 'root') { updateStatus('⚠️ Cannot delete the root node'); return; }
+            if (!confirm('Delete this node and all its descendants?')) return;
+            const toDelete = [];
+            function collect(id) {
+                toDelete.push(id);
+                const n = nodes.get(id);
+                if (n) n.children.forEach(collect);
+            }
+            collect(selectedNodeId);
+            // Remove from scene and map
+            toDelete.forEach(id => {
+                const n = nodes.get(id);
+                if (!n) return;
+                if (n.mesh && scene) scene.remove(n.mesh);
+                if (n.connections) n.connections.forEach(line => line && scene && scene.remove(line));
+                nodes.delete(id);
+            });
+            // Remove reference from parent
+            const parentId = Array.from(nodes.values()).find(n => n.children.includes(selectedNodeId))?.id || null;
+            if (parentId) {
+                const p = nodes.get(parentId);
+                p.children = p.children.filter(cid => cid !== selectedNodeId);
+            }
+            selectedNodeId = 'root';
+            rebuildConnections();
+            selectNode('root');
+            updateStatus('Node deleted');
+        }
+
+        // Import / Export
+        function importTree() {
+            const input = document.getElementById('importFile');
+            if (!input || !input.files || !input.files[0]) { updateStatus('⚠️ Choose a JSON file first'); return; }
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    loadTreeFromExport(data);
+                    document.getElementById('settingsOverlay').style.display = 'none';
+                    updateStatus('Imported tree');
+                } catch (e) {
+                    console.error(e);
+                    updateStatus('❌ Failed to import JSON');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function loadTreeFromExport(data) {
+            // Clear current scene except keep lights; remove meshes from all nodes
+            nodes.forEach(n => {
+                if (n.mesh) scene.remove(n.mesh);
+                if (n.connections) n.connections.forEach(line => line && scene.remove(line));
+            });
+            nodes = new Map();
+            selectedNodeId = null;
+
+            // Re-create nodes
+            const byId = new Map();
+            (data.nodes || []).forEach(obj => {
+                const t = new TreeNode(obj.id, obj.parentId, obj.userPrompt, obj.aiResponse);
+                t.children = Array.isArray(obj.children) ? obj.children.slice() : [];
+                t.position = obj.position || { x: 0, y: 0, z: 0 };
+                t.depth = typeof obj.depth === 'number' ? obj.depth : 0;
+                nodes.set(t.id, t);
+                byId.set(t.id, t);
+            });
+            // Rebuild children arrays from parentId to avoid stale/duplicated links
+            nodes.forEach(n => { n.children = []; });
+            nodes.forEach(n => {
+                if (n.parentId && nodes.has(n.parentId) && n.parentId !== n.id) {
+                    const parent = nodes.get(n.parentId);
+                    if (!parent.children.includes(n.id)) parent.children.push(n.id);
+                }
+            });
+            // Sync nodeCounter to avoid ID collisions
+            syncNodeCounterFromExisting();
+            // Ensure root exists
+            if (!nodes.has('root')) {
+                const r = new TreeNode('root', null, 'Imported Root', '');
+                nodes.set('root', r);
+            }
+            // Create meshes in batches to avoid blocking the main thread
+            const nodeList = Array.from(nodes.values());
+            let index = 0;
+            function createBatch() {
+                const start = performance.now();
+                while (index < nodeList.length && performance.now() - start < 12) {
+                    const n = nodeList[index++];
+                    createNodeMesh(n);
+                }
+                if (index < nodeList.length) {
+                    requestIdleCallback(createBatch);
+                } else {
+                    rebuildConnections();
+                    const sel = data.selectedNodeId && nodes.has(data.selectedNodeId) ? data.selectedNodeId : 'root';
+                    selectedNodeId = sel;
+                    selectNode(sel);
+                }
+            }
+            (window.requestIdleCallback || window.requestAnimationFrame)(createBatch);
+        }
+
+        // Appearance
+        function applyAppearance() {
+            const header = document.querySelector('.header');
+            const side = document.querySelector('.side-panel');
+            const canvasBg = document.querySelector('.canvas-container');
+            const headerColor = document.getElementById('appearanceHeader').value;
+            const sideColor = document.getElementById('appearanceSide').value;
+            const canvasColor = document.getElementById('appearanceCanvas').value;
+            const textColor = document.getElementById('appearanceText').value;
+            const accentColor = document.getElementById('appearanceAccent').value;
+            const btnColor = document.getElementById('appearanceBtn').value;
+            const btnHover = document.getElementById('appearanceBtnHover').value;
+            const lineColor = document.getElementById('appearanceLine').value;
+            const rootNodeColor = document.getElementById('appearanceRootNode').value;
+            const childNodeColor = document.getElementById('appearanceChildNode').value;
+            const font = document.getElementById('appearanceFont').value;
+            if (header) header.style.background = headerColor;
+            if (side) side.style.background = sideColor;
+            if (canvasBg) canvasBg.style.background = canvasColor;
+            document.body.style.fontFamily = font;
+            document.body.style.color = textColor;
+            // Update themed CSS
+            const theme = document.getElementById('dynamicTheme');
+            if (theme) {
+                theme.textContent = `
+                    .section-title { color: ${accentColor}; }
+                    button { background: ${btnColor}; color: ${textColor}; }
+                    button:hover { background: ${btnHover}; }
+                    .depth-indicator { color: ${accentColor}; }
+                    .node-content-box { border-left: 3px solid ${accentColor}; }
+                `;
+            }
+            // Store appearance for use in 3D materials
+            window.appearance = { headerColor, sideColor, canvasColor, textColor, accentColor, btnColor, btnHover, lineColor, rootNodeColor, childNodeColor, font };
+            // Recolor existing nodes
+            nodes.forEach(n => {
+                if (n.mesh) {
+                    const hex = n.parentId === null ? rootNodeColor : childNodeColor;
+                    n.mesh.material.color = new THREE.Color(hex);
+                    n.mesh.material.emissive = new THREE.Color(hex);
+                    if (n.mesh.children && n.mesh.children[0]) {
+                        n.mesh.children[0].material.color = new THREE.Color(hex);
+                    }
+                }
+            });
+            rebuildConnections();
+            // persist
+            localStorage.setItem('ct_appearance', JSON.stringify({ headerColor, sideColor, canvasColor, textColor, accentColor, btnColor, btnHover, lineColor, rootNodeColor, childNodeColor, font }));
+            updateStatus('Appearance applied');
+        }
+
+        function resetAppearance() {
+            const header = document.querySelector('.header');
+            const side = document.querySelector('.side-panel');
+            const canvasBg = document.querySelector('.canvas-container');
+            if (header) header.style.background = '';
+            if (side) side.style.background = '';
+            if (canvasBg) canvasBg.style.background = '';
+            document.body.style.fontFamily = '';
+            document.body.style.color = '';
+            localStorage.removeItem('ct_appearance');
+            const theme = document.getElementById('dynamicTheme');
+            if (theme) theme.textContent = '';
+            updateStatus('Appearance reset');
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            initThreeJS();
+            // Do not preselect any node; wait for the first generation
+            const delBtn = document.getElementById('deleteNodeBtn');
+            if (delBtn) {
+                delBtn.disabled = true;
+                delBtn.style.display = 'none';
+            }
+            // Load appearance from storage
+            try {
+                const saved = JSON.parse(localStorage.getItem('ct_appearance') || 'null');
+                if (saved) {
+                    document.getElementById('appearanceHeader').value = saved.headerColor || '#41084d';
+                    document.getElementById('appearanceSide').value = saved.sideColor || '#1f1f1f';
+                    document.getElementById('appearanceCanvas').value = saved.canvasColor || '#29062b';
+                    document.getElementById('appearanceText').value = saved.textColor || '#ffffff';
+                    document.getElementById('appearanceAccent').value = saved.accentColor || '#D4AF37';
+                    document.getElementById('appearanceBtn').value = saved.btnColor || '#D4AF37';
+                    document.getElementById('appearanceBtnHover').value = saved.btnHover || '#f1c40f';
+                    document.getElementById('appearanceLine').value = saved.lineColor || '#B8860B';
+                    document.getElementById('appearanceRootNode').value = saved.rootNodeColor || '#28a745';
+                    document.getElementById('appearanceChildNode').value = saved.childNodeColor || '#d63384';
+                    const fontSel = document.getElementById('appearanceFont');
+                    if (fontSel && saved.font) fontSel.value = saved.font;
+                    applyAppearance();
+                }
+            } catch {}
+        });
+    </script>
+    
+    </body>
+    </html>
