@@ -66,8 +66,10 @@ MIT - have fun!
 
 ROADMAP
 
+-temparature settings
 -might add timeline "merging"
 -maybe openai api support (literally cant test this)
 -fixes for whatever ends up breaking
+
 
 ══════════════════════════════════════════════════════════════════
